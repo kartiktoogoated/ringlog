@@ -23,7 +23,12 @@ impl MmapWriter {
             .truncate(true)
             .open(path)?;
 
-        let _ = file.set_len(capacity as u64);
+        file.set_len(capacity as u64).map_err(|e| {
+            io::Error::new(
+                e.kind(),
+                format!("Failed to set file length to {} bytes: {}", capacity, e),
+            )
+        })?;
 
         let mmap_ptr = unsafe {
             libc::mmap(
@@ -37,7 +42,11 @@ impl MmapWriter {
         };
 
         if mmap_ptr == libc::MAP_FAILED {
-            return Err(io::Error::last_os_error());
+            let err = io::Error::last_os_error();
+            return Err(io::Error::new(
+                err.kind(),
+                format!("mmap failed for capacity {}: {}", capacity, err),
+            ));
         }
 
         let mut mmap_writer = Self {
@@ -75,7 +84,11 @@ impl MmapWriter {
             )
         };
         if mmap_ptr == libc::MAP_FAILED {
-            return Err(io::Error::last_os_error());
+            let err = io::Error::last_os_error();
+            return Err(io::Error::new(
+                err.kind(),
+                format!("mmap failed for capacity {} (open): {}", capacity, err),
+            ));
         }
 
         let header = unsafe { ptr::read_unaligned(mmap_ptr as *const FileHeader) };

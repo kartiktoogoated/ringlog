@@ -1,4 +1,5 @@
 use crate::event::EventHeader;
+use crate::ring::RingError;
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 pub struct SpscRingBuffer {
@@ -11,16 +12,28 @@ pub struct SpscRingBuffer {
 unsafe impl Send for SpscRingBuffer {}
 unsafe impl Sync for SpscRingBuffer {}
 impl SpscRingBuffer {
-    pub fn new(capacity: usize) -> Self {
-        assert!(capacity.is_power_of_two());
-        assert!(capacity >= 64);
-        Self {
+    pub fn new(capacity: usize) -> Result<Self, RingError> {
+        if !capacity.is_power_of_two() {
+            return Err(RingError::InvalidCapacity {
+                capacity,
+                reason: "must be a power of two",
+            });
+        }
+        
+        if capacity < 64 {
+            return Err(RingError::InvalidCapacity {
+                capacity,
+                reason: "must be at least 64 bytes",
+            });
+        }
+        
+        Ok(Self {
             buf: UnsafeCell::new(vec![0u8; capacity].into_boxed_slice()),
             capacity,
             mask: capacity - 1,
             head: AtomicUsize::new(0),
             tail: AtomicUsize::new(0),
-        }
+        })
     }
     pub fn split(&self) -> (Producer<'_>, Consumer<'_>) {
         (Producer { ring: self }, Consumer { ring: self })

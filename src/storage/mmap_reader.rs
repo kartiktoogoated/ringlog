@@ -38,7 +38,11 @@ impl MmapReader {
         };
 
         if mmap_ptr == libc::MAP_FAILED {
-            return Err(io::Error::last_os_error());
+            let err = io::Error::last_os_error();
+            return Err(io::Error::new(
+                err.kind(),
+                format!("mmap failed for file size {} bytes: {}", len, err),
+            ));
         }
 
         let file_header = unsafe { ptr::read_unaligned(mmap_ptr as *const FileHeader) };
@@ -112,23 +116,35 @@ impl MmapReader {
         }
     }
 
-    pub fn advise_sequential(&self) {
-        unsafe {
+    pub fn advise_sequential(&self) -> io::Result<()> {
+        let result = unsafe {
             libc::madvise(
                 self.mmap_ptr as *mut libc::c_void,
                 self.mmap_len,
                 libc::MADV_SEQUENTIAL,
-            );
+            )
+        };
+        
+        if result != 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
         }
     }
 
-    pub fn advise_willneed(&self) {
-        unsafe {
+    pub fn advise_willneed(&self) -> io::Result<()> {
+        let result = unsafe {
             libc::madvise(
                 self.mmap_ptr as *mut libc::c_void,
                 self.mmap_len,
                 libc::MADV_WILLNEED,
-            );
+            )
+        };
+        
+        if result != 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
         }
     }
 }

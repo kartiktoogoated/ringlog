@@ -40,6 +40,13 @@ impl EventConsumer for MmapConsumer {
 }
 
 fn main() {
+    if let Err(e) = run() {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("ringlog v0.1.0");
     println!("Press Ctrl+C to stop\n");
 
@@ -50,12 +57,14 @@ fn main() {
         println!("\nShutting down...");
         r.store(false, Ordering::SeqCst);
     })
-    .expect("Failed to set Ctrl+C handler");
+    .map_err(|e| format!("Failed to set Ctrl+C handler: {}", e))?;
 
-    let mut ring = RingBuffer::new(64 * 1024);
+    let mut ring = RingBuffer::new(64 * 1024)
+        .map_err(|e| format!("Failed to create ring buffer: {}", e))?;
     let mut dispatcher = EventDispatcher::new();
 
-    let mmap_consumer = MmapConsumer::new("/tmp/ringlog.log", 64 * 1024 * 1024).unwrap();
+    let mmap_consumer = MmapConsumer::new("/tmp/ringlog.log", 64 * 1024 * 1024)
+        .map_err(|e| format!("Failed to create mmap consumer: {}", e))?;
     dispatcher.add_consumer(mmap_consumer);
 
     let mut total_events = 0u64;
@@ -81,5 +90,10 @@ fn main() {
     }
 
     println!("Total events processed: {}", total_events);
-    std::fs::remove_file("/tmp/ringlog.log").ok();
+    
+    if let Err(e) = std::fs::remove_file("/tmp/ringlog.log") {
+        eprintln!("Warning: Failed to remove temporary file: {}", e);
+    }
+    
+    Ok(())
 }

@@ -4,15 +4,28 @@ use crate::ring::RingBuffer;
 use std::ptr;
 
 impl RingBuffer {
-    pub fn new(capacity: usize) -> Self {
-        assert!(capacity.is_power_of_two());
-        assert!(capacity >= EventHeader::SIZE * 2);
-        Self {
+    pub fn new(capacity: usize) -> Result<Self, RingError> {
+        if !capacity.is_power_of_two() {
+            return Err(RingError::InvalidCapacity {
+                capacity,
+                reason: "must be a power of two",
+            });
+        }
+        
+        let min_capacity = EventHeader::SIZE * 2;
+        if capacity < min_capacity {
+            return Err(RingError::InvalidCapacity {
+                capacity,
+                reason: "too small, must be at least 2x EventHeader::SIZE",
+            });
+        }
+        
+        Ok(Self {
             buf: vec![0; capacity],
             capacity,
             head: 0,
             tail: 0,
-        }
+        })
     }
 
     #[inline(always)]
@@ -33,8 +46,13 @@ impl RingBuffer {
     #[inline]
     pub fn write_event(&mut self, header: &EventHeader, payload: &[u8]) -> Result<(), RingError> {
         let total_size = header.total_size();
-        if total_size > self.available() {
-            return Err(RingError::NotEnoughSpace);
+        let available = self.available();
+        
+        if total_size > available {
+            return Err(RingError::NotEnoughSpace {
+                required: total_size,
+                available,
+            });
         }
 
         let mask = self.capacity - 1;
