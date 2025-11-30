@@ -30,10 +30,11 @@ A high-performance, zero-copy event logging library for Rust. Built for trading 
 use ringlog::ring::RingBuffer;
 use ringlog::event::EventHeader;
 
-let mut ring = RingBuffer::new(64 * 1024);
+// Create buffer - returns Result for validation
+let mut ring = RingBuffer::new(64 * 1024)?;
 
 let header = EventHeader::new(timestamp, event_type, payload.len() as u16);
-ring.write_event(&header, &payload).unwrap();
+ring.write_event(&header, &payload)?;
 
 while let Some((header, payload)) = ring.read_event() {
     // process event
@@ -44,7 +45,8 @@ while let Some((header, payload)) = ring.read_event() {
 ```rust
 use ringlog::ring::SpscRingBuffer;
 
-let ring = SpscRingBuffer::new(64 * 1024 * 1024);
+// Create buffer - returns Result for validation
+let ring = SpscRingBuffer::new(64 * 1024 * 1024)?;
 let (mut producer, mut consumer) = ring.split();
 
 // Producer thread
@@ -102,6 +104,121 @@ cargo run --release --bin stress
 # Run tests
 cargo test --release
 ```
+
+## Testing
+
+ringlog has comprehensive test coverage across all critical components. All tests use optimized `unwrap()` calls for fast failure detection.
+
+### Test Categories
+
+#### 1. **Ring Buffer Tests** (`ring_buffer` module)
+Tests for the core lock-free ring buffer implementation:
+
+- **`new_creates_empty_buffer`** - Verifies buffer initialization
+- **`write_single_event`** - Tests basic write operation
+- **`read_single_event`** - Tests basic read operation and data integrity
+- **`write_multiple_events`** - Validates sequential writes and FIFO ordering
+- **`buffer_full_returns_error`** - Tests buffer capacity limits and error handling
+- **`wrap_around_works`** - Verifies circular buffer behavior across boundary
+- **`capacity_must_be_power_of_two`** - Validates power-of-2 capacity requirement
+
+**What they verify:**
+- Zero-copy operations work correctly
+- FIFO ordering is maintained
+- Circular buffer wrapping is correct
+- Error handling for capacity issues
+
+#### 2. **Event Header Tests** (`event_header` module)
+Tests for the event header structure:
+
+- **`size_is_16_bytes`** - Ensures fixed 16-byte header size
+- **`total_size_includes_payload`** - Validates size calculations
+- **`new_sets_fields_correctly`** - Tests header field initialization
+
+**What they verify:**
+- Memory layout is correct and aligned
+- Size calculations are accurate
+- Fields are properly initialized
+
+#### 3. **Event Dispatcher Tests** (`dispatcher` module)
+Tests for the consumer dispatch system:
+
+- **`drain_empty_buffer`** - Tests dispatch with no events
+- **`drain_delivers_to_consumer`** - Validates event delivery to consumers
+- **`drain_tracks_failures`** - Tests failure tracking when consumers fail
+- **`drain_batch_respects_limit`** - Verifies batch size limiting
+- **`multiple_consumers`** - Tests fanout to multiple consumers
+- **`success_rate_calculation`** - Tests statistics calculation
+- **`success_rate_empty`** - Edge case for empty stats
+
+**What they verify:**
+- Events are correctly delivered to all consumers
+- Failure tracking is accurate
+- Batch processing works as expected
+- Statistics are calculated correctly
+
+#### 4. **Mmap Storage Tests** (`mmap_storage` module)
+Tests for memory-mapped file persistence:
+
+- **`create_and_write`** - Tests file creation and writing
+- **`write_and_read_back`** - Validates write → read round-trip
+- **`iterator_works`** - Tests zero-copy iteration over events
+- **`reopen_existing_file`** - Tests file reopening and appending
+- **`buffer_full_returns_false`** - Tests capacity limits
+- **`invalid_file_returns_error`** - Tests error handling for corrupt files
+
+**What they verify:**
+- Data is correctly persisted to disk
+- Memory-mapped I/O works reliably
+- File format is correct and readable
+- Error handling for I/O failures
+- Zero-copy replay works
+
+### Running Tests
+
+```bash
+# Run all tests
+cargo test
+
+# Run tests with output
+cargo test -- --nocapture
+
+# Run specific test
+cargo test ring_buffer::write_single_event
+
+# Run tests in release mode (faster)
+cargo test --release
+
+# Run with all features
+cargo test --all-features
+```
+
+### Test Philosophy
+
+- **Fast failures**: Tests use `unwrap()` for immediate panic on errors
+- **Comprehensive coverage**: All critical paths are tested
+- **Isolation**: Each test is independent and can run in parallel
+- **Real scenarios**: Tests simulate actual usage patterns
+- **Error paths**: Both success and failure cases are tested
+
+### Continuous Testing
+
+```bash
+# Watch mode (requires cargo-watch)
+cargo watch -x test
+
+# Run tests on every save
+cargo watch -x 'test -- --nocapture'
+```
+
+## Error Handling
+
+All production code uses `Result` types with detailed error messages. See [ERROR_HANDLING.md](ERROR_HANDLING.md) for details.
+
+**Error types:**
+- `RingError::NotEnoughSpace { required, available }` - Buffer capacity exceeded
+- `RingError::InvalidCapacity { capacity, reason }` - Invalid buffer size
+- `io::Error` with context - File and mmap operation failures
 
 ## Event Format
 ```
