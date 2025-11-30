@@ -57,14 +57,14 @@ mod tests {
 
         #[test]
         fn new_creates_empty_buffer() {
-            let ring = RingBuffer::new(1024);
+            let ring = RingBuffer::new(1024).unwrap();
             assert!(ring.is_empty());
             assert_eq!(ring.used(), 0);
         }
 
         #[test]
         fn write_single_event() {
-            let mut ring = RingBuffer::new(1024);
+            let mut ring = RingBuffer::new(1024).unwrap();
             let header = EventHeader::new(1000, 1, 8);
             let payload = b"testdata";
 
@@ -76,7 +76,7 @@ mod tests {
 
         #[test]
         fn read_single_event() {
-            let mut ring = RingBuffer::new(1024);
+            let mut ring = RingBuffer::new(1024).unwrap();
             let header = EventHeader::new(1000, 1, 8);
             let payload = b"testdata";
 
@@ -92,7 +92,7 @@ mod tests {
 
         #[test]
         fn write_multiple_events() {
-            let mut ring = RingBuffer::new(4096);
+            let mut ring = RingBuffer::new(4096).unwrap();
 
             for i in 0..10 {
                 let header = EventHeader::new(i * 1000, 1, 4);
@@ -109,7 +109,7 @@ mod tests {
 
         #[test]
         fn buffer_full_returns_error() {
-            let mut ring = RingBuffer::new(128);
+            let mut ring = RingBuffer::new(128).unwrap();
             let header = EventHeader::new(0, 1, 64);
             let payload = [0u8; 64];
 
@@ -122,7 +122,7 @@ mod tests {
 
         #[test]
         fn wrap_around_works() {
-            let mut ring = RingBuffer::new(256);
+            let mut ring = RingBuffer::new(256).unwrap();
             let header = EventHeader::new(0, 1, 32);
             let payload = [0xAB; 32];
 
@@ -149,9 +149,9 @@ mod tests {
         }
 
         #[test]
-        #[should_panic]
         fn capacity_must_be_power_of_two() {
-            RingBuffer::new(1000);
+            let result = RingBuffer::new(1000);
+            assert!(result.is_err());
         }
     }
 
@@ -184,7 +184,7 @@ mod tests {
 
         #[test]
         fn drain_empty_buffer() {
-            let mut ring = RingBuffer::new(1024);
+            let mut ring = RingBuffer::new(1024).unwrap();
             let mut dispatcher = EventDispatcher::new();
             dispatcher.add_consumer(CountingConsumer::new());
 
@@ -196,7 +196,7 @@ mod tests {
 
         #[test]
         fn drain_delivers_to_consumer() {
-            let mut ring = RingBuffer::new(1024);
+            let mut ring = RingBuffer::new(1024).unwrap();
             let mut dispatcher = EventDispatcher::new();
             dispatcher.add_consumer(CountingConsumer::new());
 
@@ -214,7 +214,7 @@ mod tests {
 
         #[test]
         fn drain_tracks_failures() {
-            let mut ring = RingBuffer::new(1024);
+            let mut ring = RingBuffer::new(1024).unwrap();
             let mut dispatcher = EventDispatcher::new();
             dispatcher.add_consumer(FailingConsumer);
 
@@ -232,7 +232,7 @@ mod tests {
 
         #[test]
         fn drain_batch_respects_limit() {
-            let mut ring = RingBuffer::new(1024);
+            let mut ring = RingBuffer::new(1024).unwrap();
             let mut dispatcher = EventDispatcher::new();
             dispatcher.add_consumer(CountingConsumer::new());
 
@@ -249,7 +249,7 @@ mod tests {
 
         #[test]
         fn multiple_consumers() {
-            let mut ring = RingBuffer::new(1024);
+            let mut ring = RingBuffer::new(1024).unwrap();
             let mut dispatcher = EventDispatcher::new();
             dispatcher.add_consumer(CountingConsumer::new());
             dispatcher.add_consumer(CountingConsumer::new());
